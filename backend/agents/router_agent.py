@@ -46,7 +46,15 @@ class RouterAgent:
         )
 
         try:
-            result = json.loads(response.text)
+            # Strip markdown code fences if present
+            text = response.text.strip()
+            if text.startswith("```"):
+                text = text.split("```", 2)[1]
+                if text.startswith("json"):
+                    text = text[4:]
+                text = text.strip()
+
+            result = json.loads(text)
             return RouterDecision(
                 in_scope=result.get("in_scope", False),
                 reason=result.get("reason", "Unknown"),

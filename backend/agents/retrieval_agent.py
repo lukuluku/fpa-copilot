@@ -59,7 +59,15 @@ class RetrievalAgent:
         )
 
         try:
-            result = json.loads(response.text)
+            # Strip markdown code fences if present
+            text = response.text.strip()
+            if text.startswith("```"):
+                text = text.split("```", 2)[1]
+                if text.startswith("json"):
+                    text = text[4:]
+                text = text.strip()
+
+            result = json.loads(text)
             return RetrievalDecision(
                 chunks=results,
                 coverage_sufficient=result.get("coverage_sufficient", False),
