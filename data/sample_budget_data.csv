@@ -1,0 +1,15 @@
+cost_center,cost_center_name,category,period,budget,actuals,variance_pct
+1000,Engineering,Headcount,2026-Q3,450000,475000,-5.6
+1000,Engineering,Software Licenses,2026-Q3,50000,48000,4.0
+1000,Engineering,Infrastructure,2026-Q3,75000,82000,-9.3
+2000,Sales & Marketing,Payroll,2026-Q3,350000,360000,-2.9
+2000,Sales & Marketing,Campaign Spend,2026-Q3,120000,165000,-37.5
+2000,Sales & Marketing,Travel & Entertainment,2026-Q3,40000,38000,5.0
+3000,Finance & Operations,Payroll,2026-Q3,200000,205000,-2.5
+3000,Finance & Operations,Professional Services,2026-Q3,80000,95000,-18.8
+3000,Finance & Operations,Facilities,2026-Q3,60000,62000,-3.3
+4000,Human Resources,Recruiting,2026-Q3,100000,125000,-25.0
+4000,Human Resources,Training & Development,2026-Q3,45000,42000,6.7
+4000,Human Resources,Employee Benefits,2026-Q3,180000,185000,-2.8
+5000,Depreciation,Equipment Depreciation,2026-Q3,150000,150000,0.0
+5000,Depreciation,Software Amortization,2026-Q3,25000,25000,0.0
