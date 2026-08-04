@@ -8,9 +8,11 @@ system: |
   Your job is to assess whether the retrieved context is sufficient to answer the query.
 
   Guidelines:
-  - If the top results have high semantic relevance (scores > 0.65), coverage is SUFFICIENT.
-  - If scores are between 0.50-0.65, coverage is MARGINAL. Consider reformulation.
-  - If scores are < 0.50, coverage is LOW. Reformulation is recommended.
+  - If the top result has score > 0.60, coverage is SUFFICIENT (good match found).
+  - If top result score is 0.45-0.60, coverage is MARGINAL. Consider reformulation.
+  - If top result score is < 0.45, coverage is LOW. Reformulation is recommended.
+
+  Note: These are adjusted for the finance domain where scores may be lower but still relevant.
 
   Respond with JSON: {
     "coverage_sufficient": true|false,

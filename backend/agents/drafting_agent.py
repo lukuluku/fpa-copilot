@@ -2,6 +2,7 @@
 Drafting Agent — Generate answers grounded in retrieved context.
 """
 
+import os
 import yaml
 from pathlib import Path
 from dataclasses import dataclass
@@ -34,6 +35,7 @@ class DraftingAgent:
     def draft(self, query: str, context: list[RetrievalResult]) -> DraftingResult:
         """
         Generate an answer grounded in the provided context chunks.
+        Respects EVAL_USE_SONNET env var for testing (Phase 6 comparison).
         """
         # Format context for the prompt
         context_text = "\n".join(
@@ -47,11 +49,17 @@ class DraftingAgent:
         user_template = self.prompt_template["user_template"]
         user = user_template.format(query=query, context=context_text)
 
+        # Allow override to Sonnet for testing (Phase 6 A/B test)
+        model_override = None
+        if os.getenv("EVAL_USE_SONNET"):
+            model_override = "claude-sonnet-5"
+
         response = self.llm.sync_complete(
             system=system,
             user=user,
             temperature=0.7,  # Slight creativity for natural language
             max_tokens=1024,
+            model_override=model_override,
         )
 
         return DraftingResult(

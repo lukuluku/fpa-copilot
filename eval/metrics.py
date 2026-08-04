@@ -118,6 +118,23 @@ def evaluate_response(
     Evaluate a response across multiple dimensions.
     Returns dict with scores for each metric.
     """
+    # For out-of-scope queries, only check refusal accuracy
+    if not should_pass:
+        refusal_pass, refusal_score = check_refusal_accuracy(answer, should_pass)
+        return {
+            "overall_pass": refusal_pass,
+            "overall_score": refusal_score,
+            "faithfulness": {"pass": True, "score": 1.0, "note": "N/A for refusal"},
+            "hallucination": {"is_hallucinated": False, "score": 1.0, "note": "N/A for refusal"},
+            "relevance": {"pass": True, "score": 1.0, "note": "N/A for refusal"},
+            "refusal_accuracy": {
+                "pass": refusal_pass,
+                "score": refusal_score,
+                "note": "Correctly refused out-of-scope" if refusal_pass else "Incorrectly answered or refused"
+            },
+        }
+
+    # For in-scope queries, check all metrics
     faithfulness_pass, faithfulness_score = check_faithfulness(answer, expected_elements)
     hallucination_is_hallucinated, hallucination_score = check_hallucination(answer)
     relevance_pass, relevance_score = check_relevance(answer, query)
@@ -129,8 +146,7 @@ def evaluate_response(
         faithfulness_pass and
         not hallucination_is_hallucinated and
         relevance_pass and
-        refusal_pass and
-        should_pass  # Also check if we expected it to pass
+        refusal_pass
     )
 
     return {

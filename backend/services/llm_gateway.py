@@ -60,6 +60,12 @@ class AnthropicGateway(LLMGateway):
         api_key = os.getenv("ANTHROPIC_API_KEY")
         self.client = Anthropic(api_key=api_key)
 
+        # Allow model override via env vars (for testing/evals)
+        for role in self.DEFAULT_MODELS.keys():
+            env_var = f"LLM_MODEL_{role.upper()}"
+            if os.getenv(env_var):
+                self.DEFAULT_MODELS[role] = os.getenv(env_var)
+
     async def complete(
         self,
         system: str,
@@ -69,7 +75,7 @@ class AnthropicGateway(LLMGateway):
         model_override: str | None = None,
     ) -> LLMResponse:
         """Call Anthropic API (sync implementation for Phase 2)."""
-        model = model_override or self.DEFAULT_MODELS.get("drafter_qa", "claude-sonnet-5")
+        model = model_override or self.DEFAULT_MODELS.get("drafter_qa", "claude-haiku-4-5-20251001")
 
         message = self.client.messages.create(
             model=model,
