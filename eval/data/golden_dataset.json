@@ -1,0 +1,182 @@
+[
+  {
+    "case_id": "direct_lookup_1",
+    "category": "direct_lookup",
+    "query": "What was the engineering headcount variance in Q3?",
+    "expected_elements": ["Engineering", "-5.6%", "$475,000", "$450,000"],
+    "should_pass": true
+  },
+  {
+    "case_id": "direct_lookup_2",
+    "category": "direct_lookup",
+    "query": "What was the Sales & Marketing payroll variance?",
+    "expected_elements": ["Sales & Marketing", "-2.9%", "payroll"],
+    "should_pass": true
+  },
+  {
+    "case_id": "direct_lookup_3",
+    "category": "direct_lookup",
+    "query": "Finance & Operations Professional Services costs?",
+    "expected_elements": ["Finance & Operations", "-18.8%", "Professional Services"],
+    "should_pass": true
+  },
+  {
+    "case_id": "variance_calc_1",
+    "category": "variance_calculation",
+    "query": "How much did Finance & Operations facilities spending exceed budget?",
+    "expected_elements": ["$2,000", "exceed", "$62,000"],
+    "should_pass": true
+  },
+  {
+    "case_id": "variance_calc_2",
+    "category": "variance_calculation",
+    "query": "What was the dollar amount of the engineering infrastructure overage?",
+    "expected_elements": ["$7,000", "$82,000", "$75,000"],
+    "should_pass": true
+  },
+  {
+    "case_id": "variance_calc_3",
+    "category": "variance_calculation",
+    "query": "Sales & Marketing campaign spend variance in dollars?",
+    "expected_elements": ["$45,000", "$165,000", "$120,000"],
+    "should_pass": true
+  },
+  {
+    "case_id": "aggregation_1",
+    "category": "multi_row_aggregation",
+    "query": "Which cost centers had the largest total variances?",
+    "expected_elements": ["Finance & Operations", "Engineering", "Sales & Marketing"],
+    "should_pass": true
+  },
+  {
+    "case_id": "aggregation_2",
+    "category": "multi_row_aggregation",
+    "query": "What are all the cost centers and their variances?",
+    "expected_elements": ["Finance & Operations", "Engineering", "Sales & Marketing", "Human Resources"],
+    "should_pass": true
+  },
+  {
+    "case_id": "aggregation_3",
+    "category": "multi_row_aggregation",
+    "query": "List the departments that exceeded their budgets.",
+    "expected_elements": ["over budget", "exceed"],
+    "should_pass": true
+  },
+  {
+    "case_id": "out_of_scope_1",
+    "category": "out_of_scope_refusal",
+    "query": "What's the weather forecast?",
+    "expected_elements": ["scope"],
+    "should_pass": false
+  },
+  {
+    "case_id": "out_of_scope_2",
+    "category": "out_of_scope_refusal",
+    "query": "How do I invest in stocks?",
+    "expected_elements": ["scope", "advice"],
+    "should_pass": false
+  },
+  {
+    "case_id": "out_of_scope_3",
+    "category": "out_of_scope_refusal",
+    "query": "Tell me a joke.",
+    "expected_elements": ["scope"],
+    "should_pass": false
+  },
+  {
+    "case_id": "out_of_scope_4",
+    "category": "out_of_scope_refusal",
+    "query": "What's the capital of France?",
+    "expected_elements": ["scope"],
+    "should_pass": false
+  },
+  {
+    "case_id": "out_of_scope_5",
+    "category": "out_of_scope_refusal",
+    "query": "Can you help with my taxes?",
+    "expected_elements": ["scope"],
+    "should_pass": false
+  },
+  {
+    "case_id": "commentary_1",
+    "category": "commentary",
+    "query": "Summarize the major spending variances for Q3.",
+    "expected_elements": ["Campaign Spend", "$45,000", "significant"],
+    "should_pass": true
+  },
+  {
+    "case_id": "commentary_2",
+    "category": "commentary",
+    "query": "What were the key budget drivers in Q3?",
+    "expected_elements": ["variance", "Q3"],
+    "should_pass": true
+  },
+  {
+    "case_id": "commentary_3",
+    "category": "commentary",
+    "query": "Provide analysis of cost control in Q3.",
+    "expected_elements": ["budget", "variance"],
+    "should_pass": true
+  },
+  {
+    "case_id": "ambiguous_1",
+    "category": "ambiguous_query",
+    "query": "Was spending too high?",
+    "expected_elements": [],
+    "should_pass": true,
+    "note": "Should acknowledge ambiguity or make reasonable assumptions"
+  },
+  {
+    "case_id": "ambiguous_2",
+    "category": "ambiguous_query",
+    "query": "Tell me about money.",
+    "expected_elements": [],
+    "should_pass": true,
+    "note": "Too vague - should ask for clarification or low confidence"
+  },
+  {
+    "case_id": "edge_case_1",
+    "category": "edge_case",
+    "query": "Which line items came in exactly on budget?",
+    "expected_elements": ["Depreciation", "0.0%"],
+    "should_pass": true
+  },
+  {
+    "case_id": "edge_case_2",
+    "category": "edge_case",
+    "query": "What was the best performing cost center?",
+    "expected_elements": ["Depreciation"],
+    "should_pass": true
+  },
+  {
+    "case_id": "edge_case_3",
+    "category": "edge_case",
+    "query": "Which category had the worst variance?",
+    "expected_elements": ["Campaign Spend", "-37.5%"],
+    "should_pass": true
+  },
+  {
+    "case_id": "hallucination_test_1",
+    "category": "hallucination_detection",
+    "query": "What was the Q4 variance for Engineering?",
+    "expected_elements": [],
+    "should_pass": false,
+    "note": "Q4 data doesn't exist - should refuse or state unavailable"
+  },
+  {
+    "case_id": "hallucination_test_2",
+    "category": "hallucination_detection",
+    "query": "How much was the Marketing budget for 2025?",
+    "expected_elements": [],
+    "should_pass": false,
+    "note": "2025 data doesn't exist"
+  },
+  {
+    "case_id": "context_grounding_1",
+    "category": "context_grounding",
+    "query": "List all cost centers with citations to the data.",
+    "expected_elements": ["chunk", "row", "cite"],
+    "should_pass": true,
+    "note": "Must include citations to source data"
+  }
+]
