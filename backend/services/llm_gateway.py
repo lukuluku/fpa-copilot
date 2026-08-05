@@ -77,16 +77,37 @@ class AnthropicGateway(LLMGateway):
         """Call Anthropic API (sync implementation for Phase 2)."""
         model = model_override or self.DEFAULT_MODELS.get("drafter_qa", "claude-haiku-4-5-20251001")
 
-        message = self.client.messages.create(
-            model=model,
-            max_tokens=max_tokens,
-            temperature=temperature,
-            system=system,
-            messages=[{"role": "user", "content": user}],
-        )
+        # Sonnet 5 does not support temperature parameter; needs more tokens for thinking
+        if "sonnet" in model.lower():
+            max_tokens = max(max_tokens, 16000)  # Sonnet needs room for extended thinking
+
+        kwargs = {
+            "model": model,
+            "max_tokens": max_tokens,
+            "system": system,
+            "messages": [{"role": "user", "content": user}],
+        }
+        if "sonnet" not in model.lower():
+            kwargs["temperature"] = temperature
+
+        message = self.client.messages.create(**kwargs)
+
+        # Handle extended thinking (ThinkingBlock) in Sonnet 5
+        text_content = None
+        for block in message.content:
+            if type(block).__name__ == 'TextBlock':
+                text_content = block.text
+                break
+
+        if text_content is None:
+            # Fallback: try to get first text-like attribute
+            if message.content and hasattr(message.content[0], 'text'):
+                text_content = message.content[0].text
+            else:
+                raise ValueError(f"No text content in message response. Content types: {[type(b).__name__ for b in message.content]}")
 
         return LLMResponse(
-            text=message.content[0].text,
+            text=text_content,
             model=message.model,
             stop_reason=message.stop_reason,
             input_tokens=message.usage.input_tokens,
@@ -101,18 +122,30 @@ class AnthropicGateway(LLMGateway):
         max_tokens: int = 1024,
         model_override: str | None = None,
     ) -> LLMResponse:
-        """Synchronous wrapper — just calls the async method directly in Phase 2."""
+        """Synchronous wrapper — handles both running and non-running event loops."""
         import asyncio
+        from concurrent.futures import ThreadPoolExecutor
 
         try:
-            loop = asyncio.get_event_loop()
+            # Check if event loop is already running (e.g., in FastAPI context)
+            asyncio.get_running_loop()
+            # If we get here, a loop is running, so use ThreadPoolExecutor
+            with ThreadPoolExecutor(max_workers=1) as executor:
+                return executor.submit(
+                    asyncio.run,
+                    self.complete(system, user, temperature, max_tokens, model_override)
+                ).result()
         except RuntimeError:
-            loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(loop)
+            # No running loop, safe to use run_until_complete
+            try:
+                loop = asyncio.get_event_loop()
+            except RuntimeError:
+                loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(loop)
 
-        return loop.run_until_complete(
-            self.complete(system, user, temperature, max_tokens, model_override)
-        )
+            return loop.run_until_complete(
+                self.complete(system, user, temperature, max_tokens, model_override)
+            )
 
 
 def get_llm_gateway() -> LLMGateway:
