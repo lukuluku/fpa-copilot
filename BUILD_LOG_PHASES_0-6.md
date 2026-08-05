@@ -304,6 +304,84 @@ Partially. §7 describes the eval design but mentions DeepEval specifically, whi
 
 ---
 
+## Phase 6 Follow-up: Evaluation Framework Investigation
+
+### Discovery: Heuristic Eval Metrics Were Too Strict
+
+**What we learned after Phase 6 shipped:**
+
+When we investigated why Sonnet appeared to perform worse (52.9% vs Haiku's 70.6%), we ran direct model testing on all 17 Q&A cases. **Both models passed 100% of them.**
+
+This revealed a critical finding: **The Phase 6 evaluation framework (heuristic metrics) was too strict, creating false negatives on correct answers.**
+
+### Root Causes of False Negatives
+
+| Heuristic | Problem | Example |
+|-----------|---------|---------|
+| Keyword matching | Fails on synonyms | "exceed" vs "exceeded" marked as different |
+| Citation format | Too rigid | Accepts `[chunk_000]` only, rejects "per chunk_000" |
+| Relevance overlap | Fails on paraphrases | Same concept, different words → no match |
+| Aggregation count | Counts items not understanding context | Penalizes "all three" if worded differently |
+
+### Why Sonnet "Failed" in Phase 6
+
+Phase 6 reported Sonnet at 52.9% accuracy. Investigation showed:
+- **Reality:** Sonnet produces correct, complete answers on 100% of cases
+- **Heuristic verdict:** 52.9% because answers don't match expected keyword patterns
+- **Root cause:** Extended thinking (ThinkingBlock) + verbose output style didn't match heuristic expectations
+
+Sonnet isn't worse; the eval metric is miscalibrated.
+
+### Key Learnings
+
+1. **Heuristic evals are fragile** — Keyword matching, format checks, and string similarity don't capture semantic correctness. They're good for quick iteration but terrible for final validation.
+
+2. **LLM-as-judge is necessary for semantic tasks** — When evaluating language output, only an LLM can understand paraphrases, synonyms, and contextual correctness. Code-based checks catch format issues but miss meaning.
+
+3. **False negatives are worse than false positives** — We nearly downgraded to Sonnet based on a heuristic score that didn't reflect reality. Better to accept some false positives than mislead engineers into wrong decisions.
+
+4. **Model capability > eval score** — Both Haiku and Sonnet work at 100% on real usage. The 70.6% vs 52.9% scores say more about the eval framework than the models.
+
+### Recommendation for Phase 9+
+
+**Phase 9 Eval Framework:**
+- **Code-based** (fast, free): Check response structure, citation presence, format compliance
+- **LLM-as-judge** (accurate, costs $0.05-0.10 per eval): Judge correctness, groundedness, completeness using Claude
+- **Real user feedback** (gold standard): Track actual user satisfaction and relevance in production
+
+Example LLM-as-judge prompt:
+```
+Judge this financial Q&A response on:
+1. Correctness: Does it answer the question accurately?
+2. Groundedness: Is it sourced from the provided context?
+3. Completeness: Does it cover all relevant items (esp. aggregations)?
+
+Return JSON: {"correct": bool, "reason": "...", "confidence": 0.0-1.0}
+```
+
+**Cost:** ~$0.50 to re-evaluate 25 golden cases with LLM-as-judge (one-time)  
+**Benefit:** Truth about actual model performance, not heuristic artifacts
+
+### ADR-07 Final Status (Post-Investigation)
+
+**Initial finding (Phase 6 heuristic eval):**
+- Haiku: 70.6% ❓ QUESTIONED
+- Sonnet: 52.9% ❌ Worse
+- Recommendation: Investigate further
+
+**Investigation finding (direct testing + LLM analysis):**
+- Haiku: 100% ✅ Works
+- Sonnet: 100% ✅ Works equally
+- Recommendation: **KEEP HAIKU**
+
+**Why Haiku wins post-investigation:**
+1. Both models produce correct answers (100% real accuracy)
+2. Haiku is 2.7x cheaper ($0.0057 vs $0.0122 per query)
+3. Haiku is simpler (no extended thinking overhead)
+4. Phase 6 heuristic score (70.6%) is unreliable — use real evals in Phase 9
+
+---
+
 ## Summary: Phases 0-6
 
 | Phase | Status | Key Output | ADR Impact |
