@@ -1,5 +1,9 @@
 .env
+.env.save
 __pycache__/
 *.pyc
 venv/
 node_modules/
+frontend/.next/
+traces/
+.DS_Store

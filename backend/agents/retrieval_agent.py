@@ -1,6 +1,9 @@
 """
 Retrieval Agent — Search for relevant context and assess coverage.
-Phase 2: No retry logic yet. Phase 3 will add the retry-once pattern.
+
+Phase 5: accepts either a FAISSRetrieval (direct, fast, dev default) or an
+MCPClient (service boundary, subprocess overhead in demo mode). Pass
+use_mcp=True to route through the MCP server instead of calling FAISS directly.
 """
 
 import json
@@ -21,12 +24,25 @@ class RetrievalDecision:
 
 
 class RetrievalAgent:
-    """Retrieval Agent: search for relevant chunks and assess coverage."""
+    """
+    Retrieval Agent: search for relevant chunks and assess coverage.
 
-    def __init__(self, faiss_retrieval: FAISSRetrieval):
+    Accepts either direct FAISS (fast, in-process) or MCP client (service
+    boundary). The MCP path demonstrates the architecture; the direct path
+    is used for eval runs and local dev where subprocess latency is unacceptable.
+    """
+
+    def __init__(self, faiss_retrieval: FAISSRetrieval, use_mcp: bool = False):
         self.faiss = faiss_retrieval
+        self.use_mcp = use_mcp
         self.llm = get_llm_gateway()
         self.prompt_template = self._load_prompt()
+
+        if use_mcp:
+            from backend.services.mcp_client import MCPClient
+            self._mcp = MCPClient()
+        else:
+            self._mcp = None
 
     def _load_prompt(self) -> dict:
         """Load retrieval prompt template."""
@@ -34,13 +50,33 @@ class RetrievalAgent:
         with open(prompt_file) as f:
             return yaml.safe_load(f)
 
+    def _search(self, query: str, top_k: int) -> list[RetrievalResult]:
+        """
+        Route search to MCP server or direct FAISS depending on use_mcp flag.
+        MCP results are reconstructed into RetrievalResult objects so the rest
+        of the pipeline is unaffected by which path was taken.
+        """
+        if self.use_mcp:
+            mcp_result = self._mcp.search_financial_data(query, top_k=top_k)
+            # Reconstruct RetrievalResult objects from MCP response dicts
+            reconstructed = []
+            for r in mcp_result.results:
+                # Build a minimal chunk-like object from the MCP response fields
+                chunk = _MCPChunk(
+                    chunk_id=r.get("chunk_id", ""),
+                    text=r.get("text", ""),
+                    source_row=r.get("source_row", {}),
+                )
+                reconstructed.append(_MCPRetrievalResult(chunk=chunk, score=r.get("similarity_score", 0.0)))
+            return reconstructed
+        else:
+            return self.faiss.search(query, top_k=top_k)
+
     def retrieve(self, query: str, top_k: int = 5) -> RetrievalDecision:
         """
         Search for relevant chunks and assess if coverage is sufficient.
-        Phase 2: No retry. Phase 3 will use reformulated_query to retry if coverage is low.
         """
-        # Search FAISS
-        results = self.faiss.search(query, top_k=top_k)
+        results = self._search(query, top_k)
 
         # Format results for the LLM to evaluate
         results_text = "\n".join(
@@ -84,8 +120,22 @@ class RetrievalAgent:
             )
 
 
+@dataclass
+class _MCPChunk:
+    """Minimal chunk-like object reconstructed from MCP response."""
+    chunk_id: str
+    text: str
+    source_row: dict
+
+
+@dataclass
+class _MCPRetrievalResult:
+    """Minimal RetrievalResult-like object reconstructed from MCP response."""
+    chunk: _MCPChunk
+    score: float
+
+
 if __name__ == "__main__":
-    # Quick test
     from src.data_loader import load_csv, create_chunks
     from src.embedding_service import EmbeddingService
 
@@ -94,17 +144,23 @@ if __name__ == "__main__":
     embedding_service = EmbeddingService()
     faiss_retrieval = FAISSRetrieval(chunks, embedding_service)
 
-    retrieval_agent = RetrievalAgent(faiss_retrieval)
-
     test_queries = [
         "What was the engineering payroll variance in Q3?",
         "Which departments spent too much?",
     ]
 
+    print("--- Direct FAISS ---")
+    agent_direct = RetrievalAgent(faiss_retrieval, use_mcp=False)
     for query in test_queries:
-        decision = retrieval_agent.retrieve(query)
+        decision = agent_direct.retrieve(query)
         print(f"\nQuery: {query}")
         print(f"Coverage sufficient: {decision.coverage_sufficient}")
         print(f"Reasoning: {decision.reasoning}")
-        if decision.reformulated_query:
-            print(f"Reformulated query: {decision.reformulated_query}")
+
+    print("\n--- Via MCP ---")
+    agent_mcp = RetrievalAgent(faiss_retrieval, use_mcp=True)
+    for query in test_queries:
+        decision = agent_mcp.retrieve(query)
+        print(f"\nQuery: {query}")
+        print(f"Coverage sufficient: {decision.coverage_sufficient}")
+        print(f"Reasoning: {decision.reasoning}")

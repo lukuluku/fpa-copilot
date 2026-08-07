@@ -1,0 +1,169 @@
+╔════════════════════════════════════════════════════════════════════════════╗
+║                   QUICK START CARD - PRINT THIS OUT!                       ║
+║                    Deploy Phase 7 to Azure in 5 Steps                       ║
+╚════════════════════════════════════════════════════════════════════════════╝
+
+📋 YOU NEED:
+  • Mac or computer
+  • Azure account (free at azure.microsoft.com)
+  • 30 minutes for first deployment
+  • Internet connection
+
+╔════════════════════════════════════════════════════════════════════════════╗
+║ STEP 1: INSTALL TOOLS (First time only - 15 minutes)                      ║
+╚════════════════════════════════════════════════════════════════════════════╝
+
+A) INSTALL AZURE CLI:
+   1. Open Terminal
+   2. Paste: brew install azure-cli
+   3. Press Enter
+   4. Wait ✓
+
+B) INSTALL DOCKER:
+   1. Go to: https://www.docker.com/products/docker-desktop
+   2. Click blue "Download"
+   3. Choose your Mac type (Apple Silicon or Intel)
+   4. Open file, drag Docker to Applications
+   5. Start Docker from Applications
+   6. Wait for Docker icon in top menu bar
+
+╔════════════════════════════════════════════════════════════════════════════╗
+║ STEP 2: GET API KEY (5 minutes)                                           ║
+╚════════════════════════════════════════════════════════════════════════════╝
+
+1. Go to: https://console.anthropic.com/account/keys
+2. Log in
+3. Click "Create Key"
+4. Copy the string starting with: sk-ant-
+5. Save it somewhere safe
+
+⚠️  This is SECRET - don't share it!
+
+╔════════════════════════════════════════════════════════════════════════════╗
+║ STEP 3: LOG INTO AZURE (5 minutes - First time only)                      ║
+╚════════════════════════════════════════════════════════════════════════════╝
+
+1. Open Terminal
+2. Type: az login
+3. Press Enter
+4. Log in on the web browser that opens
+5. Close browser when done
+
+╔════════════════════════════════════════════════════════════════════════════╗
+║ STEP 4: DEPLOY (Every time - 15 minutes)                                  ║
+╚════════════════════════════════════════════════════════════════════════════╝
+
+In Terminal, type these commands (one after another):
+
+1️⃣  SET YOUR API KEY:
+    export ANTHROPIC_API_KEY="sk-ant-XXXXX"
+    (replace XXXXX with your actual key)
+
+2️⃣  GO TO PROJECT FOLDER:
+    cd /Users/adedotunadebiaye/fpa-copilot
+
+3️⃣  RUN DEPLOYMENT:
+    ./deploy.sh
+
+📌 DO NOT CLOSE TERMINAL - it takes ~15 minutes!
+
+╔════════════════════════════════════════════════════════════════════════════╗
+║ WAIT FOR: ✅ Deployment Complete                                          ║
+╚════════════════════════════════════════════════════════════════════════════╝
+
+Look for these URLs in the output:
+  Frontend: https://fpa-copilot-frontend.azurecontainerapps.io
+  Backend:  https://fpa-copilot-backend.azurecontainerapps.io
+
+📌 Save these URLs!
+
+╔════════════════════════════════════════════════════════════════════════════╗
+║ STEP 5: TEST (5 minutes)                                                  ║
+╚════════════════════════════════════════════════════════════════════════════╝
+
+1. Open web browser
+2. Paste Backend URL + /status:
+   https://fpa-copilot-backend.azurecontainerapps.io/status
+3. You should see: "status": "ok"
+
+4. Open new browser tab
+5. Paste Frontend URL:
+   https://fpa-copilot-frontend.azurecontainerapps.io
+6. You should see a web page
+
+✅ YOU'RE DONE! Your app is live!
+
+╔════════════════════════════════════════════════════════════════════════════╗
+║ QUICK TROUBLESHOOTING                                                     ║
+╚════════════════════════════════════════════════════════════════════════════╝
+
+PROBLEM: "Azure CLI not found"
+→ Run: brew install azure-cli
+
+PROBLEM: "Docker not found"
+→ Start Docker Desktop from Applications folder
+
+PROBLEM: "ANTHROPIC_API_KEY not set"
+→ Run Step 4 again, make sure you set the API key first
+
+PROBLEM: "Not authenticated with Azure"
+→ Run: az login
+→ Log in on the web page that opens
+
+PROBLEM: URLs don't work
+→ Wait 2-3 minutes, then refresh the page
+→ Sometimes Azure needs time to start
+
+PROBLEM: Deployment fails with error
+→ See: SETUP_FOR_NON_TECHNICAL_USERS.md
+→ Find your error in the Troubleshooting section
+
+╔════════════════════════════════════════════════════════════════════════════╗
+║ KEY THINGS TO REMEMBER                                                    ║
+╚════════════════════════════════════════════════════════════════════════════╝
+
+✓ Only install tools ONCE (Steps 1-3)
+✓ Every deployment, you need to:
+  1. Set API key: export ANTHROPIC_API_KEY="..."
+  2. Go to folder: cd /Users/adedotunadebiaye/fpa-copilot
+  3. Deploy: ./deploy.sh
+
+✓ Don't close Terminal while it's running
+✓ API key is SECRET - don't share it
+✓ Azure free tier usually covers costs
+
+╔════════════════════════════════════════════════════════════════════════════╗
+║ NEXT TIME (Updates to your app)                                           ║
+╚════════════════════════════════════════════════════════════════════════════╝
+
+If you make changes to your code and want to update:
+
+1. Make your code changes
+2. Open Terminal
+3. Set API key: export ANTHROPIC_API_KEY="sk-ant-..."
+4. Go to folder: cd /Users/adedotunadebiaye/fpa-copilot
+5. Deploy: ./deploy.sh
+
+That's it! Your changes will be live in ~15 minutes.
+
+╔════════════════════════════════════════════════════════════════════════════╗
+║ HELP & DOCUMENTATION                                                      ║
+╚════════════════════════════════════════════════════════════════════════════╝
+
+📖 SETUP_FOR_NON_TECHNICAL_USERS.md
+   Full explanation of everything in plain English
+
+📋 SIMPLE_CHECKLIST.md
+   Step-by-step checklist to follow
+
+📚 DEPLOYMENT_GUIDE.md
+   Technical guide (for reference)
+
+╔════════════════════════════════════════════════════════════════════════════╗
+║                          YOU'VE GOT THIS! 🚀                              ║
+╚════════════════════════════════════════════════════════════════════════════╝
+
+Your app will be live and accessible on the internet after deployment!
+
+Frontend: https://fpa-copilot-frontend.azurecontainerapps.io
+Backend:  https://fpa-copilot-backend.azurecontainerapps.io

@@ -1,20 +1,35 @@
 """FastAPI application for FP&A Copilot Q&A system."""
 
 import os
-import json
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import JSONResponse
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 import uuid
 
 from backend.guardrails import GuardrailsManager
 from backend.agents.orchestrator import AgentOrchestrator
+from backend.services.trace_emitter import TraceEmitter
 from src.data_loader import load_csv, create_chunks
 from src.embedding_service import EmbeddingService
+from src.retrieval import FAISSRetrieval
 
 
 # Initialize FastAPI
 app = FastAPI(title="FP&A Copilot", version="0.7")
+
+# CORS — allow local frontend dev and deployed origins
+_cors_origins = os.getenv(
+    "CORS_ORIGINS",
+    "http://localhost:3000,http://localhost:3001"
+).split(",")
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=_cors_origins,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 # Initialize guardrails
 guardrails = GuardrailsManager(
@@ -23,33 +38,21 @@ guardrails = GuardrailsManager(
     max_daily_cost=float(os.getenv("DAILY_COST_CEILING", "10.0")),
 )
 
-# Initialize data & services (lazy, per request to avoid global state)
+# Orchestrator — lazily initialised on first request
 _orchestrator = None
+_trace_emitter = None
 
 
-def get_orchestrator():
-    """Get or initialize orchestrator (lazy initialization)."""
-    global _orchestrator
+def get_orchestrator() -> AgentOrchestrator:
+    """Get or initialise orchestrator (lazy, singleton per process)."""
+    global _orchestrator, _trace_emitter
     if _orchestrator is None:
-        # Load data
-        rows = load_csv("data/sample_data.csv")
+        rows = load_csv("data/sample_budget_data.csv")
         chunks = create_chunks(rows)
-
-        # Initialize embeddings
-        embedder = EmbeddingService()
-        chunk_texts = [chunk.text for chunk in chunks]
-        embeddings = embedder.embed(chunk_texts)
-
-        # Build DataFrame-like structure for orchestrator
-        import pandas as pd
-        df = pd.DataFrame({
-            "chunk": chunk_texts,
-            "metadata": [chunk.metadata for chunk in chunks],
-        })
-
-        # Initialize orchestrator with data
-        _orchestrator = AgentOrchestrator(df, embeddings)
-
+        embedding_service = EmbeddingService()
+        faiss_retrieval = FAISSRetrieval(chunks, embedding_service)
+        _trace_emitter = TraceEmitter()
+        _orchestrator = AgentOrchestrator(faiss_retrieval, _trace_emitter)
     return _orchestrator
 
 
@@ -99,17 +102,46 @@ async def query_endpoint(req: QueryRequest, request: Request) -> QueryResponse:
         })
 
     try:
-        # Run orchestrator
         orchestrator = get_orchestrator()
         result = orchestrator.run(query)
 
-        # Construct response
+        # Build per-agent trace dict for the frontend governance sidebar.
+        # Keys are "agent_N" so the sidebar can iterate in order.
+        traces = {
+            f"step_{i}": {
+                "agent": step.agent,
+                "model": step.model,
+                "duration_ms": round(step.latency_ms),
+                "input_tokens": step.input_tokens,
+                "output_tokens": step.output_tokens,
+                "cost": step.cost_usd,
+            }
+            for i, step in enumerate(result.context_used and [] or [])
+            # context_used holds retrieval chunks; per_agent is on the trace.
+            # We surface per_agent via the emitter's last trace instead.
+        }
+
+        # Pull per_agent from the most recent emitted trace
+        if _trace_emitter and _trace_emitter.traces:
+            last_trace = _trace_emitter.traces[-1]
+            traces = {
+                f"step_{i}": {
+                    "agent": step.agent,
+                    "model": step.model,
+                    "duration_ms": round(step.latency_ms),
+                    "input_tokens": step.input_tokens,
+                    "output_tokens": step.output_tokens,
+                    "cost": step.cost_usd,
+                }
+                for i, step in enumerate(last_trace.per_agent)
+            }
+
         return QueryResponse(
             query=query,
-            answer=result.get("answer", ""),
-            refusal_reason=result.get("refusal_reason"),
+            answer=result.answer or "",
+            refusal_reason=result.refusal_reason,
             guardrails_status=guardrails.get_status(client_ip, session_id),
-            traces=result.get("traces", {}),
+            traces=traces,
         )
 
     except Exception as e:

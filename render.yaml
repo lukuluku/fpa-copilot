@@ -1,0 +1,32 @@
+services:
+  # Backend — FastAPI
+  - type: web
+    name: fpa-copilot-backend
+    runtime: docker
+    dockerfilePath: ./backend/Dockerfile
+    dockerContext: .
+    plan: free
+    envVars:
+      - key: ANTHROPIC_API_KEY
+        sync: false          # set manually in Render dashboard
+      - key: LANGFUSE_ENABLED
+        value: "false"       # disable Langfuse in prod until keys are added
+      - key: RATE_LIMIT_PER_MIN
+        value: "20"
+      - key: QUERY_CAP_PER_SESSION
+        value: "50"
+      - key: DAILY_COST_CEILING
+        value: "10.0"
+      - key: CORS_ORIGINS
+        value: "https://fpa-copilot-frontend.onrender.com"
+
+  # Frontend — Next.js
+  - type: web
+    name: fpa-copilot-frontend
+    runtime: docker
+    dockerfilePath: ./frontend/Dockerfile
+    dockerContext: ./frontend
+    plan: free
+    buildArgs:
+      - key: NEXT_PUBLIC_API_URL
+        value: "https://fpa-copilot-backend.onrender.com"

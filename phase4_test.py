@@ -1,8 +1,25 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 """
-Phase 4: Observability test.
-Run queries through instrumented orchestrator and display per-agent traces.
+Phase 4: Langfuse observability test.
+
+Runs two queries through the full orchestrator and verifies:
+  1. Local JSON trace is written with correct per_agent entries.
+  2. If LANGFUSE_ENABLED=true and keys are set, confirms Langfuse accepted
+     the trace (via get_trace_url printed for manual verification).
+
+Run with local-only (default):
+    python phase4_test.py
+
+Run with Langfuse enabled:
+    LANGFUSE_ENABLED=true \
+    LANGFUSE_PUBLIC_KEY=pk-lf-... \
+    LANGFUSE_SECRET_KEY=sk-lf-... \
+    python phase4_test.py
 """
+
+import glob
+import json
+import os
 
 from dotenv import load_dotenv
 load_dotenv()
@@ -14,104 +31,83 @@ from backend.agents.orchestrator import AgentOrchestrator
 from backend.services.trace_emitter import TraceEmitter
 
 
-def print_header(title: str):
-    print("\n" + "=" * 90)
-    print(title)
-    print("=" * 90)
+def _latest_trace() -> dict:
+    files = sorted(glob.glob("traces/trace_*.json"), key=os.path.getmtime)
+    with open(files[-1]) as f:
+        return json.load(f)
 
 
-def print_trace_details(result, trace_emitter):
-    """Print detailed trace information for a query."""
-    if not trace_emitter.traces:
-        return
+def assert_trace_schema(trace: dict, label: str) -> None:
+    """Spot-check the §3.6 fields we care about."""
+    required = [
+        "trace_id", "session_id", "timestamp", "query",
+        "agent_path", "retrieval_retried", "draft_revised",
+        "outcome", "per_agent", "total_cost_usd", "total_latency_ms",
+    ]
+    missing = [k for k in required if k not in trace]
+    assert not missing, f"[{label}] Missing §3.6 fields: {missing}"
 
-    trace = trace_emitter.traces[-1]
+    for step in trace["per_agent"]:
+        for field in ("agent", "model", "latency_ms", "input_tokens", "output_tokens", "cost_usd"):
+            assert field in step, f"[{label}] per_agent step missing '{field}': {step}"
 
-    print(f"\nTrace ID: {trace.trace_id}")
-    print(f"Session ID: {trace.session_id}")
-    print(f"Query: {trace.query}")
-    print(f"Outcome: {trace.outcome}")
-    print(f"Agent path: {' → '.join(trace.agent_path)}")
-    print(f"Retrieval retried: {trace.retrieval_retried}")
-    print(f"Draft revised: {trace.draft_revised}")
-
-    print(f"\n{'Per-Agent Breakdown':─^90}")
-    print(f"{'Agent':<15} {'Model':<30} {'Latency (ms)':<15} {'Tokens':<20} {'Cost (USD)':<10}")
-    print("-" * 90)
-
-    for step in trace.per_agent:
-        model_short = step.model.replace("claude-", "").replace("-20251001", "")
-        tokens = f"{step.input_tokens}in/{step.output_tokens}out"
-        print(
-            f"{step.agent:<15} {model_short:<30} {step.latency_ms:>10.2f}      "
-            f"{tokens:<20} ${step.cost_usd:>8.6f}"
-        )
-
-    print("-" * 90)
-    print(f"{'TOTAL':<15} {'':<30} {trace.total_latency_ms:>10.2f} ms  "
-          f"{'(full pipeline)':<20} ${trace.total_cost_usd:>8.6f}")
-
-    print(f"\nConfidence score: {trace.confidence_score:.2f}")
-    if trace.refusal_reason:
-        print(f"Refusal reason: {trace.refusal_reason}")
+    assert trace["total_cost_usd"] > 0, f"[{label}] total_cost_usd is 0"
+    assert trace["total_latency_ms"] > 0, f"[{label}] total_latency_ms is 0"
+    print(f"  [OK] [{label}] schema valid -- {len(trace['per_agent'])} per_agent entries, "
+          f"total_cost=${trace['total_cost_usd']:.5f}, outcome={trace['outcome']}")
 
 
 def main():
-    print_header("PHASE 4: Observability & Per-Agent Tracing")
+    print("=" * 70)
+    print("PHASE 4: Langfuse Observability")
+    print("=" * 70)
 
-    # Setup
-    print("\nSetting up orchestrator with tracing...")
     rows = load_csv("data/sample_budget_data.csv")
     chunks = create_chunks(rows)
-    embedding_service = EmbeddingService()
-    faiss_retrieval = FAISSRetrieval(chunks, embedding_service)
+    emb = EmbeddingService()
+    faiss = FAISSRetrieval(chunks, emb)
+    emitter = TraceEmitter()
+    orchestrator = AgentOrchestrator(faiss, trace_emitter=emitter)
 
-    trace_emitter = TraceEmitter(output_dir="traces")
-    orchestrator = AgentOrchestrator(faiss_retrieval, trace_emitter)
-    print(f"  Orchestrator ready with trace emission to {trace_emitter.output_dir}/")
+    langfuse_on = emitter.langfuse_enabled
+    print(f"\nLangfuse enabled: {langfuse_on}")
+    if langfuse_on:
+        print(f"  host: {os.getenv('LANGFUSE_HOST', 'https://cloud.langfuse.com')}")
 
-    # Test queries
-    test_queries = [
-        "What was the engineering headcount variance in Q3?",
-        "Which cost centers are over budget?",
-        "What's the weather?",
-    ]
+    # Test 1: standard in-scope query
+    print("\n[Test 1] Standard Q&A query")
+    result = orchestrator.run("What was the engineering headcount variance in Q3?")
+    trace = _latest_trace()
+    print(f"  outcome=success:{result.success}, path={' -> '.join(result.agent_path)}")
+    assert_trace_schema(trace, "Test 1")
 
-    for query in test_queries:
-        print_header(f"QUERY: {query}")
-        result = orchestrator.run(query)
-
-        if result.success:
-            print(f"✅ SUCCESS")
-            print(f"\nAnswer (first 200 chars):")
-            print(f"  {result.answer[:200]}...")
-        else:
-            print(f"❌ REFUSED")
-            print(f"  Reason: {result.refusal_reason}")
-
-        print_trace_details(result, trace_emitter)
+    # Test 2: out-of-scope -- router-only path, one per_agent entry
+    print("\n[Test 2] Out-of-scope query -- router-only path")
+    result = orchestrator.run("What's the best restaurant in London?")
+    trace = _latest_trace()
+    assert not result.success
+    assert trace["outcome"] == "refused_scope"
+    agents_seen = [s["agent"] for s in trace["per_agent"]]
+    assert agents_seen == ["router"], f"Expected ['router'], got: {agents_seen}"
+    assert_trace_schema(trace, "Test 2")
 
     # Summary
-    print_header("TRACE SUMMARY")
-    summary = trace_emitter.get_summary()
-    print(f"Total traces: {summary['total_traces']}")
-    print(f"  Successful: {summary['successful']}")
-    print(f"  Refused: {summary['refused']}")
-    print(f"\nAggregate costs:")
-    print(f"  Total: ${summary['total_cost_usd']:.6f}")
-    print(f"  Average per query: ${summary['avg_cost_per_trace']:.6f}")
-    print(f"\nAggregate latency:")
-    print(f"  Total: {summary['total_latency_ms']:.2f} ms")
-    print(f"  Average per query: {summary['avg_latency_ms']:.2f} ms")
-    print(f"\nTraces stored in: {trace_emitter.output_dir}/")
+    print("\n" + "-" * 70)
+    summary = emitter.get_summary()
+    print("Session summary:")
+    for k, v in summary.items():
+        print(f"  {k:<22}: {v:.5f}" if isinstance(v, float) else f"  {k:<22}: {v}")
 
-    print_header("PHASE 4 COMPLETE")
-    print("\n✓ Per-agent tracing working")
-    print("✓ Cost breakdown by agent visible")
-    print("✓ Latency breakdown by agent visible")
-    print("✓ Traces persisted to local JSON files")
-    print("\nNext: Phase 5 will pull data access into the MCP server.")
+    if langfuse_on and emitter._langfuse:
+        url = emitter._langfuse.get_trace_url(trace_id=getattr(emitter, "_last_trace_id", None))
+        print(f"\nLangfuse trace URL (most recent): {url}")
+
+    print("\nPhase 4 complete -- all assertions passed")
+    if not langfuse_on:
+        print("\nNote: Langfuse remote emission not tested.")
+        print("Set LANGFUSE_ENABLED=true + keys to test it.")
 
 
 if __name__ == "__main__":
+    os.chdir(os.path.dirname(os.path.abspath(__file__)))
     main()

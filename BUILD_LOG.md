@@ -49,20 +49,20 @@ learning gets pinned down — without it, you'll build the thing but not retain 
 - **Retro:** Does the Router genuinely need its own LLM call, or could a cheaper check do it? (This is a real fork — log it either way.)
 
 ### Phase 3 — Critic + Orchestrator Loop
-- [ ] Retry-once-on-low-coverage implemented
-- [ ] Revise-once-on-failed-critique implemented
-- [ ] Hard refusal path implemented and tested
-- **Retro:** On real queries, did the refusal threshold feel right, too strict, or too loose? Log this even if you don't change it yet.
+- [x] Retry-once-on-low-coverage implemented
+- [x] Revise-once-on-failed-critique implemented
+- [x] Hard refusal path implemented and tested
+- **Retro:** Threshold felt about right on real queries — 12 of 307 traces hit `refused_faithfulness`, which is a believable rate for a prototype dataset. Found and fixed a bug in this phase: revision path used `per_agent[-1] =` (overwrite) instead of `add_agent_step()` (append), silently dropping the revision drafting entry and understating `total_cost_usd` on all `draft_revised: true` traces. 29 historical traces have understated costs; not backfilled (pre-fix dev scaffolding, not used for real cost claims).
 
 ### Phase 4 — Observability (Langfuse)
-- [ ] Per-agent trace (model, latency, cost) logged for every request
-- [ ] Can you answer "why did this response cost $X?" by looking at the trace alone, without checking code?
-- **Retro:** What did you decide to log that *wasn't* in the architecture doc's trace schema? Why?
+- [x] Per-agent trace (model, latency, cost) logged for every request
+- [x] Can you answer "why did this response cost $X?" by looking at the trace alone, without checking code?
+- **Retro:** Two things logged that weren't in the §3.6 schema: `_last_trace_id` stored on the emitter (needed to build the dashboard URL outside an active span context — `get_trace_url()` returns None without it), and `answer_present: bool` in the root span output (cleaner than parsing `outcome` string in the UI). Three things that broke during wiring: wrong Langfuse region (US vs cloud.langfuse.com), child spans fired outside parent context (v4 requires all children inside the root `with` block), and `propagate_attributes()` doesn't exist in v4.14.2. Trace confirmed live in dashboard: `https://us.cloud.langfuse.com/project/cmsi58m5i0iutad0j1vwh3ehe/traces/4a2baa60a935487bbf34945ebe3841cb`.
 
 ### Phase 5 — MCP Server
-- [ ] Data access pulled out of backend into standalone `fpa-data-mcp`
-- [ ] Backend now calls it as an MCP client
-- **Retro:** How much latency did the extra hop actually add? Was it noticeable?
+- [x] Data access pulled out of backend into standalone `fpa-data-mcp`
+- [x] Backend now calls it as an MCP client
+- **Retro:** The extra hop added ~7,300ms per retrieval call — all subprocess cold-start (sentence-transformers + FAISS rebuilding from scratch per request). End-to-end orchestrator went from ~8s to ~24s with MCP active. Very noticeable. Default kept as `use_mcp=False`; MCP path is wired and tested via the `use_mcp=True` flag but not activated for production traffic until a persistent TCP/SSE server replaces the subprocess approach.
 
 ### Phase 6 — Eval Harness
 - [ ] Golden dataset run end-to-end

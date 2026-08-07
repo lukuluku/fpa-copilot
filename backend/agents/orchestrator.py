@@ -198,8 +198,8 @@ class AgentOrchestrator:
             drafting_latency = (time.time() - drafting_start) * 1000
             current_draft = draft_result.answer
 
-            # Record revision trace (update last drafting step)
-            trace.per_agent[-1] = AgentStepMetrics(
+            # Record revision drafting as its own entry (not an overwrite)
+            trace.add_agent_step(AgentStepMetrics(
                 agent="drafting",
                 model=draft_result.model_used,
                 latency_ms=drafting_latency,
@@ -210,22 +210,22 @@ class AgentOrchestrator:
                     draft_result.tokens_used[0],
                     draft_result.tokens_used[1],
                 ),
-            )
+            ))
 
             # Re-critique
             critic_start = time.time()
             critique = self.critic.review(query, current_draft, context)
             critic_latency = (time.time() - critic_start) * 1000
 
-            # Update critic trace
-            trace.per_agent[-1] = AgentStepMetrics(
+            # Record re-critique as its own entry (not an overwrite)
+            trace.add_agent_step(AgentStepMetrics(
                 agent="critic",
                 model="claude-sonnet-5",
                 latency_ms=critic_latency,
                 input_tokens=500,
                 output_tokens=150,
                 cost_usd=calculate_cost("claude-sonnet-5", 500, 150),
-            )
+            ))
 
             if critique.verdict == "PASS":
                 trace.agent_path = agent_path

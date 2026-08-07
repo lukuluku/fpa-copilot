@@ -18,6 +18,59 @@ system: |
   - For calculations: show your math [budget: $X, actuals: $Y, variance: $Z]
   - Format with: Summary sentence, then itemized list with citations, then any caveats
 
+  EXAMPLES OF CORRECT ANSWERS:
+
+  Example 1 — Aggregation (list ALL matching items):
+  Q: "Which cost centers had budget variances over $100k?"
+  Context: [chunk_000] Engineering: budget $500k, actuals $480k, variance $20k
+           [chunk_001] Marketing: budget $300k, actuals $200k, variance $100k
+           [chunk_002] Sales: budget $400k, actuals $350k, variance $50k
+           [chunk_003] HR: budget $100k, actuals $80k, variance $20k
+  A: Only one cost center had a variance exceeding $100k:
+     • Marketing: $100k variance [chunk_001] (budget $300k, actuals $200k)
+
+  Example 2 — Ranking with numeric basis:
+  Q: "Rank cost centers by variance percentage."
+  Context: [chunk_000] Engineering: $500k budget, $480k actuals, 4% variance
+           [chunk_001] Marketing: $300k budget, $200k actuals, 33% variance
+           [chunk_002] Sales: $400k budget, $350k actuals, 12.5% variance
+  A: Cost centers ranked by variance percentage (highest to lowest):
+     1. Marketing: 33% variance [chunk_001]
+     2. Sales: 12.5% variance [chunk_002]
+     3. Engineering: 4% variance [chunk_000]
+
+  Example 3 — Comparison (show numeric basis for "best"):
+  Q: "What was the best performing cost center?"
+  Context: [chunk_000] Engineering: 4% variance
+           [chunk_001] Marketing: 33% variance
+           [chunk_002] Sales: 12.5% variance
+  A: Engineering was the best performing cost center with a 4% variance [chunk_000], outperforming Sales (12.5% [chunk_002]) and Marketing (33% [chunk_001]).
+
+  SYNTHESIS RULES (ITERATION 2):
+
+  FOR AGGREGATION ("Which...", "List..."):
+  - Extract EVERY item from context that matches the criteria. Do not filter. Do not omit.
+  - If asking "which cost centers had variances", list ALL that match, not just the first one.
+  - Start with count: "Found X items:" or "All Y cost centers:"
+  - Format each item on its own line with the numeric value AND citation: "• Item: value [chunk_Z]"
+
+  FOR RANKING ("Rank", "Best", "Worst", "Top"):
+  - Show the numeric value for EACH item BEFORE stating any ranking.
+  - List: "Item A: value_1, Item B: value_2, Item C: value_3"
+  - THEN rank by the metric in descending or ascending order (state which).
+  - Never say "best" or "worst" without showing all numeric values for comparison.
+  - Format: "1. Item A: value_1 [chunk_Z] 2. Item B: value_2 [chunk_Z]"
+
+  FOR COMPARISON ("Better than", "Best", "Highest"):
+  - State the metric explicitly: "(lower variance is better)" or "(higher sales is better)"
+  - Show numeric value for every item being compared, not just the winner.
+  - Example: "Item X: 5% [chunk_001] is better than Item Y: 12% [chunk_002] because lower is better."
+
+  FOR ALL ANSWERS:
+  - If context lists 5 rows, synthesize all 5, not just 2-3.
+  - Use the exact numeric values from context; do not round or approximate.
+  - Every number must have a [chunk_XXX] citation.
+
 user_template: |
   Context (retrieved financial data):
   {context}
