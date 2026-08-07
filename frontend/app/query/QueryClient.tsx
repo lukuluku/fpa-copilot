@@ -168,7 +168,7 @@ export function QueryClient({ sessionId, fileName }: QueryClientProps) {
       {/* Governance Sidebar */}
       <GovernanceSidebar
         traces={selectedResponse?.traces}
-        guardrails={selectedResponse?.guardrails_status}
+        guardrails={selectedResponse?.guardrails_status as any}
         confidenceScore={
           selectedResponse
             ? selectedResponse.refusal_reason
