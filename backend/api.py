@@ -38,9 +38,24 @@ guardrails = GuardrailsManager(
     max_daily_cost=float(os.getenv("DAILY_COST_CEILING", "10.0")),
 )
 
-# Orchestrator — lazily initialised on first request
+# Orchestrator — initialised at startup so OOM fails fast at deploy, not mid-request
 _orchestrator = None
 _trace_emitter = None
+
+
+@app.on_event("startup")
+async def startup_event():
+    """Pre-load the orchestrator and embedding model at startup."""
+    global _orchestrator, _trace_emitter
+    from src.data_loader import load_csv, create_chunks
+    from src.embedding_service import EmbeddingService
+    from src.retrieval import FAISSRetrieval
+    rows = load_csv("data/sample_budget_data.csv")
+    chunks = create_chunks(rows)
+    embedding_service = EmbeddingService()
+    faiss_retrieval = FAISSRetrieval(chunks, embedding_service)
+    _trace_emitter = TraceEmitter()
+    _orchestrator = AgentOrchestrator(faiss_retrieval, _trace_emitter)
 
 
 def get_orchestrator() -> AgentOrchestrator:
