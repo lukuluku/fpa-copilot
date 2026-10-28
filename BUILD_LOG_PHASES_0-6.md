@@ -611,3 +611,55 @@ Two queries submitted and answered with sidebar updating after each:
 | 7 | ✅ | Guardrails, API, sidebar — all verified in browser | ADR-09 enforcement |
 
 **Remaining:** Deployment to public URL — deferred until explicitly requested.
+
+---
+
+## Deployment — Render.com
+
+### Decision: Render instead of Azure Container Apps
+
+**Why the switch:** Azure CLI authenticated fine but the account (`adedotun.adebiaye@yahoo.com`) had no subscription attached. No subscription = no resource groups, no Container Registry, no Container Apps. The Azure deploy script was correct; the account setup wasn't.
+
+**Why Render:** Free tier, Docker-native, reads a `render.yaml` blueprint file directly from the repo. No subscription, no resource groups, no registry — connect GitHub, click Apply, done.
+
+**Trade-off accepted:** Free tier on Render spins down services after 15 minutes of inactivity. Cold start on wake-up is ~30s for the backend (sentence-transformers + FAISS reload). For a demo/portfolio project this is fine; for production you'd pay for an always-on instance.
+
+### What was added for Render
+
+**`render.yaml`** — Blueprint file at repo root. Declares two services:
+- `fpa-copilot-backend`: Docker runtime, `backend/Dockerfile`, context `.` (whole repo needed for `src/` imports)
+- `fpa-copilot-frontend`: Docker runtime, `frontend/Dockerfile`, context `./frontend`
+- `ANTHROPIC_API_KEY` marked `sync: false` (must be set manually in dashboard — never committed)
+- `CORS_ORIGINS` set to the Render frontend URL
+- `NEXT_PUBLIC_API_URL` passed as a Docker build arg (Next.js bakes it in at build time, not runtime)
+
+**`frontend/Dockerfile` updated** — Changed `ENV NEXT_PUBLIC_API_URL=<azure url>` to `ARG NEXT_PUBLIC_API_URL` so Render can inject the correct URL at build time rather than having the wrong URL baked in permanently.
+
+**`.gitignore` updated** — Added `frontend/.next/`, `traces/`, `.DS_Store`, `.env.save`. The `.next` build cache had been tracked by git since the initial commit; removed from index with `git rm -r --cached`.
+
+### Repo state at deploy
+- Commit: `ff24bd5`
+- Branch: `main`
+- Repo: `github.com/lukuluku/fpa-copilot`
+- Render Blueprint: reads `render.yaml` automatically on connect
+
+### Deployment steps for Render
+1. render.com → New → Blueprint → connect `lukuluku/fpa-copilot`
+2. Render detects `render.yaml`, shows both services
+3. Click Apply — Docker builds start (~5–10 min each)
+4. After first deploy: `fpa-copilot-backend` → Environment → set `ANTHROPIC_API_KEY`
+5. Trigger redeploy on backend for the key to take effect
+
+### Final summary table
+
+| Phase | Status | Key Output |
+|-------|--------|-----------|
+| 0 | ✅ | Skeleton + API verification |
+| 1 | ✅ | FAISS retrieval |
+| 2 | ✅ | 3-agent pipeline (Router, Retrieval, Drafting) |
+| 3 | ✅ | Critic + orchestrator loop |
+| 4 | ✅ | Langfuse tracing live |
+| 5 | ✅ | MCP server boundary wired |
+| 6 | ✅ | Eval harness (25 cases, ADR-07 flagged) |
+| 7 | ✅ | Guardrails, API, governance sidebar in browser |
+| Deploy | ⏳ | Render Blueprint applied — awaiting build completion |
